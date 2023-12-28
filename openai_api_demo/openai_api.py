@@ -37,10 +37,16 @@ from utils import process_response, generate_chatglm3, generate_stream_chatglm3
 
 from sse_starlette.sse import EventSourceResponse
 
+
+import numpy as np
+import tiktoken
+from sentence_transformers import SentenceTransformer
+from sklearn.preprocessing import PolynomialFeatures
+
 # Set up limit request time
 EventSourceResponse.DEFAULT_PING_INTERVAL = 1000
 
-MODEL_PATH = os.environ.get('MODEL_PATH', 'THUDM/chatglm3-6b')
+MODEL_PATH = os.environ.get('MODEL_PATH', '/home/linshisancc/models/chatglm3-6b')
 TOKENIZER_PATH = os.environ.get("TOKENIZER_PATH", MODEL_PATH)
 
 
@@ -132,6 +138,76 @@ class ChatCompletionResponse(BaseModel):
     choices: List[Union[ChatCompletionResponseChoice, ChatCompletionResponseStreamChoice]]
     created: Optional[int] = Field(default_factory=lambda: int(time.time()))
     usage: Optional[UsageInfo] = None
+
+
+class EmbeddingRequest(BaseModel):
+    input: List[str]
+    model: str
+
+
+class EmbeddingResponse(BaseModel):
+    data: list
+    model: str
+    object: str
+    usage: dict
+
+def num_tokens_from_string(string: str) -> int:
+    """Returns the number of tokens in a text string."""
+    encoding = tiktoken.get_encoding('cl100k_base')
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
+
+
+def expand_features(embedding, target_length):
+    poly = PolynomialFeatures(degree=2)
+    expanded_embedding = poly.fit_transform(embedding.reshape(1, -1))
+    expanded_embedding = expanded_embedding.flatten()
+    if len(expanded_embedding) > target_length:
+        # 如果扩展后的特征超过目标长度，可以通过截断或其他方法来减少维度
+        expanded_embedding = expanded_embedding[:target_length]
+    elif len(expanded_embedding) < target_length:
+        # 如果扩展后的特征少于目标长度，可以通过填充或其他方法来增加维度
+        expanded_embedding = np.pad(
+            expanded_embedding, (0, target_length - len(expanded_embedding))
+        )
+    return expanded_embedding
+
+
+@app.post("/v1/embeddings", response_model=EmbeddingResponse)
+async def get_embeddings(
+    request: EmbeddingRequest
+):
+    # 计算嵌入向量和tokens数量
+    embeddings = [embeddings_model.encode(text) for text in request.input]
+
+    # 如果嵌入向量的维度不为1536，则使用插值法扩展至1536维度
+    embeddings = [
+        expand_features(embedding, 1536) if len(embedding) < 1536 else embedding
+        for embedding in embeddings
+    ]
+
+    # Min-Max normalization 归一化
+    embeddings = [embedding / np.linalg.norm(embedding) for embedding in embeddings]
+
+    # 将numpy数组转换为列表
+    embeddings = [embedding.tolist() for embedding in embeddings]
+    prompt_tokens = sum(len(text.split()) for text in request.input)
+    total_tokens = sum(num_tokens_from_string(text) for text in request.input)
+
+    response = {
+        "data": [
+            {"embedding": embedding, "index": index, "object": "embedding"}
+            for index, embedding in enumerate(embeddings)
+        ],
+        "model": request.model,
+        "object": "list",
+        "usage": {
+            "prompt_tokens": prompt_tokens,
+            "total_tokens": total_tokens,
+        },
+    }
+
+    return response
 
 
 @app.get("/v1/models", response_model=ModelList)
@@ -418,5 +494,5 @@ def contains_custom_function(value: str) -> bool:
 if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_PATH, trust_remote_code=True)
     model = AutoModel.from_pretrained(MODEL_PATH, trust_remote_code=True, device_map="auto").eval()
-
+    embeddings_model = SentenceTransformer('/home/linshisancc/models/m3e-base', device='cpu')
     uvicorn.run(app, host='0.0.0.0', port=8000, workers=1)
