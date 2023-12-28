@@ -46,9 +46,11 @@ from sklearn.preprocessing import PolynomialFeatures
 # Set up limit request time
 EventSourceResponse.DEFAULT_PING_INTERVAL = 1000
 
-MODEL_PATH = os.environ.get('MODEL_PATH', '/home/linshisancc/models/chatglm3-6b')
+# chat-glm3模型
+MODEL_PATH = os.environ.get('GLM3_MODEL_PATH', '')
+# m3e模型
+M3E_MODEL_PATH = os.environ.get('M3E_MODEL_PATH', '')
 TOKENIZER_PATH = os.environ.get("TOKENIZER_PATH", MODEL_PATH)
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # collects GPU memory
@@ -494,5 +496,5 @@ def contains_custom_function(value: str) -> bool:
 if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_PATH, trust_remote_code=True)
     model = AutoModel.from_pretrained(MODEL_PATH, trust_remote_code=True, device_map="auto").eval()
-    embeddings_model = SentenceTransformer('/home/linshisancc/models/m3e-base', device='cpu')
+    embeddings_model = SentenceTransformer(M3E_MODEL_PATH, device='cpu')
     uvicorn.run(app, host='0.0.0.0', port=8000, workers=1)
