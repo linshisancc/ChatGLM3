@@ -21,3 +21,7 @@ fastapi>=0.105.0
 sse-starlette>=1.8.2
 uvicorn~=0.24.0
 timm>=0.9.12
+
+# fastgpt
+sentence_transformers>=2.2.2
+tiktoken>=0.5.2

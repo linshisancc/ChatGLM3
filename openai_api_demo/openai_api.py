@@ -47,9 +47,9 @@ from sklearn.preprocessing import PolynomialFeatures
 EventSourceResponse.DEFAULT_PING_INTERVAL = 1000
 
 # chat-glm3模型
-MODEL_PATH = os.environ.get('GLM3_MODEL_PATH', '-')
+MODEL_PATH = os.environ.get('GLM3_MODEL_PATH', '/home/linshisancc/models/chatglm3-6b')
 # m3e模型
-M3E_MODEL_PATH = os.environ.get('M3E_MODEL_PATH', '-')
+M3E_MODEL_PATH = os.environ.get('M3E_MODEL_PATH', '/home/linshisancc/models/m3e-base')
 TOKENIZER_PATH = os.environ.get("TOKENIZER_PATH", MODEL_PATH)
 
 @asynccontextmanager
